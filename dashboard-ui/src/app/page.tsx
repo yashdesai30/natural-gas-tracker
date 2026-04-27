@@ -274,8 +274,8 @@ export default function Dashboard() {
                   )}
                 </AnimatePresence>
 
-                <DataTable 
-                  data={data} 
+                <DataTable
+                  data={data}
                   showFilters={showFilters}
                   onToggleFilters={() => setShowFilters(!showFilters)}
                   isFiltered={!!(symbolFilter || startDate || endDate)}
