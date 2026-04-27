@@ -3,3 +3,7 @@ pyotp==2.9.0
 supabase>=2.15.0
 pandas==2.2.3
 python-dotenv==1.0.1
+fastapi
+uvicorn
+gunicorn
+a2wsgi
