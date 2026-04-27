@@ -16,7 +16,8 @@ export async function POST() {
     console.log(`[Next.js] Python API response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
-      throw new Error(`Python API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Python API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();

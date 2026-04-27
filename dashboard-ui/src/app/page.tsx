@@ -1,19 +1,34 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { StatsGrid } from '@/components/StatsGrid';
 import { DataTable } from '@/components/DataTable';
-import { RefreshCw, Database, Terminal, ShieldCheck } from 'lucide-react';
+import { RefreshCw, Database, Terminal, ShieldCheck, Search, Calendar, Filter, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Filter states
+  const [symbolFilter, setSymbolFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch('/api/data?limit=500');
+      const params = new URLSearchParams();
+      params.set('limit', '500');
+      if (symbolFilter) params.set('symbol', symbolFilter);
+      if (startDate) params.set('start_date', startDate);
+      if (endDate) params.set('end_date', endDate);
+
+      const response = await fetch(`/api/data?${params.toString()}`);
       const result = await response.json();
       if (result.success) {
         setData(result.data);
@@ -23,49 +38,94 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [symbolFilter, startDate, endDate]);
+
+  const checkSyncStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sync/status');
+      const result = await response.json();
+
+      if (result.success) {
+        setSyncing(result.is_syncing);
+        setSyncError(result.error);
+
+        // If sync just finished, refresh data
+        if (!result.is_syncing && syncing) {
+          fetchData();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check sync status:', error);
+    }
+  }, [syncing, fetchData]);
 
   const handleSync = async () => {
     setSyncing(true);
+    setSyncError(null);
     try {
       const response = await fetch('/api/sync', { method: 'POST' });
       const result = await response.json();
-      if (result.success) {
-        await fetchData();
-      } else {
-        alert(`Sync failed: ${result.error}`);
+      if (!result.success) {
+        setSyncError(result.error || 'Failed to start sync');
+        setSyncing(false);
       }
     } catch (error) {
       console.error('Sync failed:', error);
-      alert('Sync failed. check console for details.');
-    } finally {
+      setSyncError('Network error starting sync');
       setSyncing(false);
     }
   };
 
+  // Poll sync status if syncing is true
   useEffect(() => {
-    fetchData();
+    if (syncing) {
+      pollInterval.current = setInterval(checkSyncStatus, 3000);
+    } else {
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    }
+    return () => {
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    };
+  }, [syncing, checkSyncStatus]);
+
+  // Initial fetch and fetch on filter change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 500); // Debounce filter changes
+    return () => clearTimeout(timer);
   }, [fetchData]);
+
+  // Check status on mount in case a sync was already running
+  useEffect(() => {
+    checkSyncStatus();
+  }, []);
+
+  const clearFilters = () => {
+    setSymbolFilter('');
+    setStartDate('');
+    setEndDate('');
+  };
 
   const latest = data[0] || null;
 
   return (
-    <main className="relative min-h-screen bg-black text-zinc-100 overflow-hidden">
+    <main className="relative min-h-screen bg-black text-zinc-100 overflow-hidden pb-20">
       {/* Background Glows */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-emerald-600/5 rounded-full blur-[140px] pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-6 py-12 md:py-20 space-y-16">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
           <div className="space-y-4">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               className="flex items-center gap-3 text-blue-400 font-mono text-xs font-black tracking-[0.3em] uppercase"
             >
-              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              Live Market Console
+              <div className={`w-2 h-2 rounded-full ${syncing ? 'bg-amber-500 animate-ping' : 'bg-blue-500 animate-pulse'}`} />
+              {syncing ? 'Background Sync Active' : 'Live Market Console'}
             </motion.div>
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
@@ -81,37 +141,122 @@ export default function Dashboard() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
-            className="flex items-center gap-4"
+            className="flex flex-wrap items-center gap-4"
           >
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-6 py-4 rounded-2xl font-bold transition-all border ${showFilters || symbolFilter || startDate
+                  ? 'bg-zinc-800 border-zinc-700 text-white'
+                  : 'bg-transparent border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
+                }`}
+            >
+              <Filter className="w-5 h-5" />
+              Filters
+              {(symbolFilter || startDate || endDate) && (
+                <span className="w-2 h-2 rounded-full bg-blue-500 ml-1" />
+              )}
+            </button>
+
             <button
               onClick={handleSync}
               disabled={syncing}
               className={`
                 group relative flex items-center gap-3 px-8 py-4 rounded-2xl font-bold transition-all shadow-2xl
                 ${syncing
-                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                  ? 'bg-zinc-900 text-amber-500 cursor-not-allowed border border-amber-500/20'
                   : 'bg-white text-black hover:bg-blue-50 hover:scale-[1.02] active:scale-95 shadow-white/5'}
               `}
             >
               <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
-              {syncing ? 'Syncing...' : 'Sync Latest Data'}
+              {syncing ? 'Updating Database...' : 'Sync Latest'}
             </button>
           </motion.div>
         </div>
+
+        {/* Filter Panel */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, y: -20 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -20 }}
+              className="overflow-hidden"
+            >
+              <div className="p-8 rounded-[2rem] bg-zinc-900/40 border border-white/10 backdrop-blur-3xl grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                    <Search className="w-3 h-3" /> Search Symbol
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. NATURALGAS24MAYFUT"
+                    value={symbolFilter}
+                    onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
+                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-zinc-700"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                    <Calendar className="w-3 h-3" /> From Date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                    <Calendar className="w-3 h-3" /> To Date
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
+                  />
+                </div>
+
+                <button
+                  onClick={clearFilters}
+                  className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {syncError && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium flex items-center gap-3"
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            Sync Error: {syncError}
+          </motion.div>
+        )}
 
         {/* Stats Row */}
         <StatsGrid latest={latest} />
 
         {/* Table Section */}
         <div className="space-y-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
                 <Database className="w-6 h-6 text-zinc-400" />
               </div>
               <div>
-                <h2 className="text-2xl font-black text-white tracking-tight">Historical Snapshots</h2>
-                <p className="text-sm text-zinc-500 font-medium">Showing most recent records from Supabase</p>
+                <h2 className="text-2xl font-black text-white tracking-tight">Market Snapshots</h2>
+                <p className="text-sm text-zinc-500 font-medium">
+                  {symbolFilter || startDate
+                    ? `Showing filtered results (${data.length} records)`
+                    : 'Showing most recent records from Supabase'}
+                </p>
               </div>
             </div>
           </div>
@@ -130,7 +275,9 @@ export default function Dashboard() {
                     <RefreshCw className="w-10 h-10 animate-spin text-blue-500" />
                     <div className="absolute inset-0 blur-xl bg-blue-500/20 animate-pulse" />
                   </div>
-                  <span className="font-mono text-sm tracking-widest uppercase">Loading Database...</span>
+                  <span className="font-mono text-sm tracking-widest uppercase text-center px-4">
+                    Retrieving Market Intelligence...
+                  </span>
                 </div>
               </motion.div>
             ) : (
@@ -141,6 +288,14 @@ export default function Dashboard() {
                 transition={{ delay: 0.3 }}
               >
                 <DataTable data={data} />
+                {data.length === 0 && (
+                  <div className="py-20 text-center space-y-4">
+                    <div className="inline-flex p-4 rounded-full bg-white/5 text-zinc-700">
+                      <Search className="w-8 h-8" />
+                    </div>
+                    <p className="text-zinc-500 font-medium">No records found for the selected criteria.</p>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -154,7 +309,7 @@ export default function Dashboard() {
           Secured Connection Established
         </div>
         <p className="text-zinc-700 text-xs font-mono uppercase tracking-widest">
-          Build v1.2.0 • Groww API • Supabase Cloud
+          Build v1.3.0 • Groww API • Supabase Cloud
         </p>
       </footer>
     </main>

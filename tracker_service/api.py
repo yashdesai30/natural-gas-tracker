@@ -29,8 +29,9 @@ logger.setLevel(logging.INFO)
 
 print("API Script Loaded. Logging level: INFO", flush=True)
 
-# Global shared fetcher to cache access token in memory
+# Global shared state
 _shared_fetcher = None
+_sync_status = {"is_syncing": False, "last_sync": None, "error": None}
 
 def get_fetcher():
     global _shared_fetcher
@@ -48,11 +49,15 @@ def get_fetcher():
 @app.post("/sync")
 async def trigger_sync(background_tasks: BackgroundTasks, days: int = 30):
     """Trigger a sync in the background."""
+    global _sync_status
+    if _sync_status["is_syncing"]:
+        return {"success": False, "message": "Sync already in progress"}
+
     try:
         fetcher = get_fetcher()
     except Exception as e:
         logger.error("Failed to initialize GrowwDataFetcher: %s", str(e))
-        return {"success": false, "error": f"Authentication failed: {str(e)}"}
+        return {"success": False, "error": f"Authentication failed: {str(e)}"}
 
     settings = get_settings()
     repository = SupabaseRepository(
@@ -61,35 +66,59 @@ async def trigger_sync(background_tasks: BackgroundTasks, days: int = 30):
         table=settings.supabase_table,
     )
     
-    print(f"DEBUG: Sync requested for {days} days", flush=True)
-    logger.info("Sync requested for %d days", days)
-    
     def run_sync_with_logs():
+        global _sync_status
+        _sync_status["is_syncing"] = True
+        _sync_status["error"] = None
         logger.info("Background sync started for %d days", days)
         try:
             sync_history(fetcher, repository, days)
+            _sync_status["last_sync"] = datetime.now(LOCAL_TIMEZONE).isoformat()
             logger.info("Background sync completed successfully")
         except Exception as e:
+            _sync_status["error"] = str(e)
             logger.error("Background sync failed: %s", str(e))
+        finally:
+            _sync_status["is_syncing"] = False
 
     background_tasks.add_task(run_sync_with_logs)
-    
     return {"success": True, "message": f"Sync started for last {days} days"}
 
+@app.get("/sync/status")
+async def get_sync_status():
+    """Check the status of the background sync."""
+    return {"success": True, **_sync_status}
+
 @app.get("/data")
-async def get_data(limit: int = 500):
-    """Fetch latest data from Supabase."""
-    print(f"DEBUG: Fetching data with limit: {limit}", flush=True)
-    logger.info("Fetching data with limit: %d", limit)
+async def get_data(
+    limit: int = 500, 
+    symbol: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None
+):
+    """Fetch latest data from Supabase with optional filters."""
     settings = get_settings()
     repository = SupabaseRepository(
         url=settings.supabase_url,
         key=settings.supabase_key,
         table=settings.supabase_table,
     )
-    data = repository.fetch_recent(limit=limit)
-    logger.info("Fetched %d records", len(data))
-    return {"success": True, "data": data}
+    
+    try:
+        if start_date and end_date:
+            start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            data = repository.fetch_between(start_dt, end_dt, limit=limit, symbol=symbol)
+        elif start_date:
+            start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            data = repository.fetch_since(start_dt, limit=limit, symbol=symbol)
+        else:
+            data = repository.fetch_recent(limit=limit, symbol=symbol)
+            
+        return {"success": True, "data": data}
+    except Exception as e:
+        logger.error("Failed to fetch data: %s", str(e))
+        return {"success": False, "error": str(e)}
 
 @app.get("/health")
 async def health_check():

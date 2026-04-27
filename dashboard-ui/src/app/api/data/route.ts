@@ -6,8 +6,17 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = searchParams.get('limit') || '500';
+    const symbol = searchParams.get('symbol');
+    const start_date = searchParams.get('start_date');
+    const end_date = searchParams.get('end_date');
 
-    const apiUrl = `${PYTHON_API_URL}/data?limit=${limit}`;
+    const params = new URLSearchParams();
+    params.set('limit', limit);
+    if (symbol) params.set('symbol', symbol);
+    if (start_date) params.set('start_date', start_date);
+    if (end_date) params.set('end_date', end_date);
+
+    const apiUrl = `${PYTHON_API_URL}/data?${params.toString()}`;
     console.log(`[Next.js] Calling Python API: GET ${apiUrl}`);
     
     const response = await fetch(apiUrl);

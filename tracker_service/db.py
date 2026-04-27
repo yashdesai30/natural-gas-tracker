@@ -65,22 +65,25 @@ class SupabaseRepository:
 
         raise RuntimeError("Failed to insert ATM record into Supabase") from last_error
 
-    def fetch_recent(self, limit: int = 200) -> list[dict[str, object]]:
+    def fetch_recent(self, limit: int = 200, symbol: str | None = None) -> list[dict[str, object]]:
+        query = self.client.table(self.table).select("*")
+        if symbol:
+            query = query.eq("futures_symbol", symbol)
+        
         response = (
-            self.client.table(self.table)
-            .select("*")
-            .order("timestamp", desc=True)
+            query.order("timestamp", desc=True)
             .limit(limit)
             .execute()
         )
         return list(response.data or [])
 
-    def fetch_since(self, since: datetime, limit: int = 5000) -> list[dict[str, object]]:
+    def fetch_since(self, since: datetime, limit: int = 5000, symbol: str | None = None) -> list[dict[str, object]]:
+        query = self.client.table(self.table).select("*").gte("timestamp", since.isoformat())
+        if symbol:
+            query = query.eq("futures_symbol", symbol)
+            
         response = (
-            self.client.table(self.table)
-            .select("*")
-            .gte("timestamp", since.isoformat())
-            .order("timestamp", desc=True)
+            query.order("timestamp", desc=True)
             .limit(limit)
             .execute()
         )
@@ -91,13 +94,19 @@ class SupabaseRepository:
         start: datetime,
         end: datetime,
         limit: int = 5000,
+        symbol: str | None = None,
     ) -> list[dict[str, object]]:
-        response = (
+        query = (
             self.client.table(self.table)
             .select("*")
             .gte("timestamp", start.isoformat())
-            .lt("timestamp", end.isoformat())
-            .order("timestamp", desc=True)
+            .lte("timestamp", end.isoformat())
+        )
+        if symbol:
+            query = query.eq("futures_symbol", symbol)
+            
+        response = (
+            query.order("timestamp", desc=True)
             .limit(limit)
             .execute()
         )
