@@ -29,4 +29,4 @@ The premium frontend for the Natural Gas Tracker. Built with Next.js, Framer Mot
 5. Deploy!
 
 ## 🔧 API Proxy
-The frontend proxies all `/api/data` and `/api/sync` requests to the Python backend to keep logic centralized and secure.
+The frontend proxies all `/data` and `/sync` requests to the Python backend to keep logic centralized and secure.

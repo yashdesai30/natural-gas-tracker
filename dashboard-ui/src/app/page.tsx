@@ -13,7 +13,7 @@ export default function Dashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch('/api/data?limit=500');
+      const response = await fetch('/data?limit=500');
       const result = await response.json();
       if (result.success) {
         setData(result.data);
@@ -28,7 +28,7 @@ export default function Dashboard() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const response = await fetch('/api/sync', { method: 'POST' });
+      const response = await fetch('/sync', { method: 'POST' });
       const result = await response.json();
       if (result.success) {
         await fetchData();
