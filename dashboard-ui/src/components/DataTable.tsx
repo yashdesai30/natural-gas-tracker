@@ -121,7 +121,7 @@ export function DataTable({
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className="px-8 py-5 text-xs font-bold text-zinc-400 uppercase tracking-[0.15em] cursor-pointer hover:text-white transition-colors"
+                      className="px-4 sm:px-8 py-5 text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-[0.15em] cursor-pointer hover:text-white transition-colors"
                       onClick={header.column.getToggleSortingHandler()}
                     >
                       <div className="flex items-center gap-2">
@@ -143,7 +143,7 @@ export function DataTable({
                   className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors group"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-8 py-4 text-sm font-medium">
+                    <td key={cell.id} className="px-4 sm:px-8 py-4 text-xs sm:text-sm font-medium">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -154,8 +154,8 @@ export function DataTable({
         </div>
 
         {/* Pagination Controls */}
-        <div className="px-8 py-4 flex items-center justify-between border-t border-white/[0.08] bg-white/[0.01]">
-          <div className="flex items-center gap-6">
+        <div className="px-4 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/[0.08] bg-white/[0.01]">
+          <div className="flex items-center gap-4 sm:gap-6">
             <div className="flex items-center gap-2">
               <button
                 className="p-2 rounded-lg hover:bg-white/5 disabled:opacity-20 disabled:hover:bg-transparent transition-colors"

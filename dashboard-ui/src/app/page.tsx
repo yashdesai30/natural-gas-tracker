@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { StatsGrid } from '@/components/StatsGrid';
 import { DataTable } from '@/components/DataTable';
-import { RefreshCw, Database, Terminal, ShieldCheck, Search, Calendar, Filter, X } from 'lucide-react';
+import { MarketChart } from '@/components/MarketChart';
+import { RefreshCw, Database, Terminal, ShieldCheck, Search, Calendar, Filter, X, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showChart, setShowChart] = useState(true);
 
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
@@ -115,14 +116,14 @@ export default function Dashboard() {
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-emerald-600/5 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="relative max-w-7xl mx-auto px-6 py-12 md:py-20 space-y-16">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-20 space-y-12 md:space-y-16">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-3 text-blue-400 font-mono text-xs font-black tracking-[0.3em] uppercase"
+              className="flex items-center gap-3 text-blue-400 font-mono text-[10px] md:text-xs font-black tracking-[0.3em] uppercase"
             >
               <div className={`w-2 h-2 rounded-full ${syncing ? 'bg-amber-500 animate-ping' : 'bg-blue-500 animate-pulse'}`} />
               {syncing ? 'Background Sync Active' : 'Live Market Console'}
@@ -131,7 +132,7 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-5xl md:text-7xl font-black tracking-tight text-white"
+              className="text-4xl sm:text-5xl md:text-7xl font-black tracking-tight text-white leading-[1.1]"
             >
               Natural Gas <span className="text-zinc-600 font-light">Tracker</span>
             </motion.h1>
@@ -170,8 +171,40 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Stats Row */}
-        <StatsGrid latest={latest} />
+        {/* Chart Section */}
+        <div className="space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-blue-400">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white tracking-tight">Price Dynamics</h2>
+                <p className="text-sm text-zinc-500 font-medium">Real-time correlation between Futures and Option premiums</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setShowChart(!showChart)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all text-xs font-bold"
+            >
+              {showChart ? 'Hide Chart' : 'Show Chart'}
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {showChart && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                className="overflow-hidden"
+              >
+                <MarketChart data={data} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Table Section */}
         <div className="space-y-8">
