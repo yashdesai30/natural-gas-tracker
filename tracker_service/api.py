@@ -29,16 +29,32 @@ logger.setLevel(logging.INFO)
 
 print("API Script Loaded. Logging level: INFO", flush=True)
 
+# Global shared fetcher to cache access token in memory
+_shared_fetcher = None
+
+def get_fetcher():
+    global _shared_fetcher
+    if _shared_fetcher is None:
+        settings = get_settings()
+        logger.info("Initializing shared GrowwDataFetcher...")
+        _shared_fetcher = GrowwDataFetcher(
+            access_token=settings.groww_access_token,
+            api_key=settings.groww_api_key,
+            totp_secret=settings.groww_totp_secret,
+            cache_ttl_hours=settings.instrument_cache_ttl_hours,
+        )
+    return _shared_fetcher
+
 @app.post("/sync")
 async def trigger_sync(background_tasks: BackgroundTasks, days: int = 30):
     """Trigger a sync in the background."""
+    try:
+        fetcher = get_fetcher()
+    except Exception as e:
+        logger.error("Failed to initialize GrowwDataFetcher: %s", str(e))
+        return {"success": false, "error": f"Authentication failed: {str(e)}"}
+
     settings = get_settings()
-    fetcher = GrowwDataFetcher(
-        access_token=settings.groww_access_token,
-        api_key=settings.groww_api_key,
-        totp_secret=settings.groww_totp_secret,
-        cache_ttl_hours=settings.instrument_cache_ttl_hours,
-    )
     repository = SupabaseRepository(
         url=settings.supabase_url,
         key=settings.supabase_key,
