@@ -213,7 +213,7 @@ export function MarketChart({ data }: { data: MarketData[] }) {
               fill="rgba(0,0,0,0.2)"
               gap={5}
               travellerWidth={8}
-              tick={false} // Remove cheap-looking ticks
+              tickFormatter={() => ''} // Hide labels to keep it minimalist
             >
               <ComposedChart>
                 <defs>
