@@ -144,20 +144,6 @@ export default function Dashboard() {
             className="flex flex-wrap items-center gap-4"
           >
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-6 py-4 rounded-2xl font-bold transition-all border ${showFilters || symbolFilter || startDate
-                  ? 'bg-zinc-800 border-zinc-700 text-white'
-                  : 'bg-transparent border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
-                }`}
-            >
-              <Filter className="w-5 h-5" />
-              Filters
-              {(symbolFilter || startDate || endDate) && (
-                <span className="w-2 h-2 rounded-full bg-blue-500 ml-1" />
-              )}
-            </button>
-
-            <button
               onClick={handleSync}
               disabled={syncing}
               className={`
@@ -172,62 +158,6 @@ export default function Dashboard() {
             </button>
           </motion.div>
         </div>
-
-        {/* Filter Panel */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, y: -20 }}
-              animate={{ opacity: 1, height: 'auto', y: 0 }}
-              exit={{ opacity: 0, height: 0, y: -20 }}
-              className="overflow-hidden"
-            >
-              <div className="p-8 rounded-[2rem] bg-zinc-900/40 border border-white/10 backdrop-blur-3xl grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                    <Search className="w-3 h-3" /> Search Symbol
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. NATURALGAS24MAYFUT"
-                    value={symbolFilter}
-                    onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
-                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-zinc-700"
-                  />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                    <Calendar className="w-3 h-3" /> From Date
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
-                  />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                    <Calendar className="w-3 h-3" /> To Date
-                  </label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
-                  />
-                </div>
-
-                <button
-                  onClick={clearFilters}
-                  className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-white transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {syncError && (
           <motion.div
@@ -286,8 +216,71 @@ export default function Dashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
+                className="space-y-6"
               >
-                <DataTable data={data} />
+                {/* Filter Panel (Now appears ABOVE the table) */}
+                <AnimatePresence>
+                  {showFilters && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, y: -10 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: -10 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-8 rounded-[2rem] bg-zinc-900/40 border border-white/10 backdrop-blur-3xl grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+                        <div className="space-y-3">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                            <Search className="w-3 h-3" /> Search Symbol
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. NATURALGAS24MAYFUT"
+                            value={symbolFilter}
+                            onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
+                            className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-zinc-700"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                            <Calendar className="w-3 h-3" /> From Date
+                          </label>
+                          <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                            <Calendar className="w-3 h-3" /> To Date
+                          </label>
+                          <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
+                          />
+                        </div>
+
+                        <button
+                          onClick={clearFilters}
+                          className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-white transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <DataTable 
+                  data={data} 
+                  showFilters={showFilters}
+                  onToggleFilters={() => setShowFilters(!showFilters)}
+                  isFiltered={!!(symbolFilter || startDate || endDate)}
+                />
+
                 {data.length === 0 && (
                   <div className="py-20 text-center space-y-4">
                     <div className="inline-flex p-4 rounded-full bg-white/5 text-zinc-700">
