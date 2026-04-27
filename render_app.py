@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-Run Gunicorn for Render.  Uses gthread worker with real OS threads so the
-Groww feed can run its own asyncio loop without eventlet interference.
+Run Gunicorn for Render using Uvicorn workers.
+This is the standard and most stable way to run FastAPI in production.
 """
 import os
 import sys
 
 port = os.environ.get("PORT", "10000")
+# We use UvicornWorker which is async-native and avoids "eventlet" issues.
 sys.argv = [
     "gunicorn",
     "--bind", f"0.0.0.0:{port}",
-    "--worker-class", "gthread",
+    "--worker-class", "uvicorn.workers.UvicornWorker",
     "-w", "1",
-    "--threads", "20",
     "--timeout", "120",
-    "wsgi:application",
+    "tracker_service.api:app",
 ]
+
 from gunicorn.app.wsgiapp import run
-run()
+if __name__ == "__main__":
+    run()

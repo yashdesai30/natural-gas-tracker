@@ -36,12 +36,14 @@ npm run dev
 
 ### 1. Backend (Render)
 1. Create a new **Web Service** on Render.
-2. Build Command: `pip install -r requirements.txt`
-3. Start Command: `python -m uvicorn tracker_service.api:app --host 0.0.0.0 --port $PORT`
-4. Environment Variables:
-   - `GROWW_ACCESS_TOKEN`: Your Groww token.
-   - `SUPABASE_URL`: Your Supabase URL.
-   - `SUPABASE_KEY`: Your Supabase Key.
+2. The `.python-version` file will automatically set Python to `3.11.9`.
+3. Build Command: `pip install -r requirements.txt`
+4. Start Command: `python render_app.py`
+5. Environment Variables:
+   - `SUPABASE_URL`: Your Supabase Project URL
+   - `SUPABASE_KEY`: Your Supabase API Key
+   - `GROWW_ACCESS_TOKEN`: Your Groww Access Token
+   - `GROWW_TOTP_SECRET`: (Optional) For automated re-auth
    - `PYTHONPATH`: `.`
 
 ### 2. Frontend (Vercel)
