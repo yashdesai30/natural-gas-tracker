@@ -56,3 +56,6 @@ npm run dev
 - **Windows**: 9:00-9:15, 15:00-15:15, 17:00-17:30, 20:00-20:30.
 - **Sampling**: Every 5 minutes (0, 5, 10...).
 - **Rollover**: If current date < Last Thursday of the month, stay in current contract; otherwise, roll to next month.
+
+
+Testing 
