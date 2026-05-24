@@ -112,6 +112,62 @@ class SupabaseRepository:
         )
         return list(response.data or [])
 
+    def fetch_last_before(self, ts: datetime, symbol: str | None = None) -> dict[str, object] | None:
+        query = self.client.table(self.table).select("*").lt("timestamp", ts.isoformat())
+        if symbol:
+            query = query.eq("futures_symbol", symbol)
+        response = query.order("timestamp", desc=True).limit(1).execute()
+        return response.data[0] if response.data else None
+
+    def fetch_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 15,
+        symbol: str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> tuple[list[dict[str, object]], int]:
+        query = self.client.table(self.table).select("*", count="exact")
+        if symbol:
+            query = query.eq("futures_symbol", symbol)
+        if start_date:
+            query = query.gte("timestamp", start_date.isoformat())
+        if end_date:
+            query = query.lte("timestamp", end_date.isoformat())
+            
+        start_offset = (page - 1) * page_size
+        end_offset = start_offset + page_size - 1
+        
+        response = (
+            query.order("timestamp", desc=True)
+            .range(start_offset, end_offset)
+            .execute()
+        )
+        return list(response.data or []), response.count or 0
+
+    def fetch_first_of_day(self, date_str: str, symbol: str | None = None) -> dict[str, object] | None:
+        from tracker_service.intraday_windows import LOCAL_TIMEZONE
+        from datetime import datetime, timedelta, timezone
+        
+        # Start of date_str in IST
+        start_dt_ist = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=LOCAL_TIMEZONE)
+        start_dt_utc = start_dt_ist.astimezone(timezone.utc)
+        # End of date_str in IST
+        end_dt_ist = start_dt_ist + timedelta(days=1)
+        end_dt_utc = end_dt_ist.astimezone(timezone.utc)
+        
+        query = (
+            self.client.table(self.table)
+            .select("*")
+            .gte("timestamp", start_dt_utc.isoformat())
+            .lt("timestamp", end_dt_utc.isoformat())
+        )
+        if symbol:
+            query = query.eq("futures_symbol", symbol)
+            
+        response = query.order("timestamp", desc=False).limit(1).execute()
+        return response.data[0] if response.data else None
+
     @staticmethod
     def _is_permission_error(exc: APIError) -> bool:
         payload = getattr(exc, "args", [{}])[0]
