@@ -89,6 +89,17 @@ async def get_sync_status():
     """Check the status of the background sync."""
     return {"success": True, **_sync_status}
 
+@app.post("/auth/refresh")
+async def manual_token_refresh():
+    """Manually trigger an access token refresh using credentials/TOTP."""
+    try:
+        fetcher = get_fetcher()
+        fetcher.refresh_token()
+        return {"success": True, "message": "Access token refreshed successfully"}
+    except Exception as e:
+        logger.error("Failed to manually refresh access token: %s", str(e))
+        return {"success": False, "error": str(e)}
+
 @app.get("/data")
 async def get_data(
     limit: int = 500, 
