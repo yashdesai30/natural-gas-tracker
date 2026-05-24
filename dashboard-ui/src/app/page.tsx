@@ -8,6 +8,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const [data, setData] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(15);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -24,7 +27,8 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      params.set('limit', '500');
+      params.set('page', (pageIndex + 1).toString());
+      params.set('page_size', pageSize.toString());
       if (symbolFilter) params.set('symbol', symbolFilter);
       if (startDate) params.set('start_date', startDate);
       if (endDate) params.set('end_date', endDate);
@@ -33,13 +37,14 @@ export default function Dashboard() {
       const result = await response.json();
       if (result.success) {
         setData(result.data);
+        setTotalCount(result.total || 0);
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
     }
-  }, [symbolFilter, startDate, endDate]);
+  }, [pageIndex, pageSize, symbolFilter, startDate, endDate]);
 
   const checkSyncStatus = useCallback(async () => {
     try {
@@ -88,6 +93,11 @@ export default function Dashboard() {
       if (pollInterval.current) clearInterval(pollInterval.current);
     };
   }, [syncing, checkSyncStatus]);
+
+  // Reset pageIndex when filters change
+  useEffect(() => {
+    setPageIndex(0);
+  }, [symbolFilter, startDate, endDate]);
 
   // Initial fetch and fetch on filter change
   useEffect(() => {
@@ -309,6 +319,12 @@ export default function Dashboard() {
 
                 <DataTable
                   data={data}
+                  pageIndex={pageIndex}
+                  pageSize={pageSize}
+                  pageCount={Math.ceil(totalCount / pageSize)}
+                  totalCount={totalCount}
+                  onPageChange={setPageIndex}
+                  onPageSizeChange={setPageSize}
                   showFilters={showFilters}
                   onToggleFilters={() => setShowFilters(!showFilters)}
                   isFiltered={!!(symbolFilter || startDate || endDate)}

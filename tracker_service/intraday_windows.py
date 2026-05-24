@@ -8,10 +8,7 @@ import pandas as pd
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
 WINDOW_RANGES: tuple[tuple[time, time], ...] = (
-    (time(9, 0), time(9, 16)),
-    (time(15, 0), time(15, 16)),
-    (time(17, 0), time(17, 31)),
-    (time(20, 0), time(20, 31)),
+    (time(9, 0), time(23, 59)),
 )
 
 
