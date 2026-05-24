@@ -36,6 +36,11 @@ class GrowwDataFetcher:
         cache_ttl_hours: int = 12,
         cache_path: str | Path = ".cache/groww_instruments.csv",
     ) -> None:
+        self.api_key = api_key
+        self.totp_secret = totp_secret
+        self.cache_ttl = timedelta(hours=cache_ttl_hours)
+        self.cache_path = Path(cache_path)
+        
         if not access_token and (api_key and totp_secret):
             logger.info("No access token provided. Attempting TOTP login...")
             totp = pyotp.TOTP(totp_secret.replace(" ", ""))
@@ -48,16 +53,46 @@ class GrowwDataFetcher:
             raise RuntimeError("Either access_token or (api_key and totp_secret) must be provided")
 
         self.groww = GrowwAPI(access_token)
-        self.cache_ttl = timedelta(hours=cache_ttl_hours)
-        self.cache_path = Path(cache_path)
         self.exchange_mcx = getattr(self.groww, "EXCHANGE_MCX", MCX_EXCHANGE)
         self.segment_commodity = getattr(self.groww, "SEGMENT_COMMODITY", COMMODITY_SEGMENT)
+
+    def _refresh_access_token(self) -> None:
+        if not self.api_key or not self.totp_secret:
+            raise RuntimeError("Cannot refresh access token: api_key and/or totp_secret are missing")
+        logger.info("Generating fresh access token using TOTP...")
+        totp = pyotp.TOTP(self.totp_secret.replace(" ", ""))
+        current_otp = totp.now()
+        access_token = GrowwAPI.get_access_token(api_key=self.api_key, totp=current_otp)
+        self.groww = GrowwAPI(access_token)
+        logger.info("Access token successfully refreshed!")
+
+    def refresh_token(self) -> None:
+        """Public method to manually trigger a token refresh."""
+        self._refresh_access_token()
+
+    def _execute_api_call(self, api_func, *args, **kwargs):
+        from growwapi.groww.exceptions import GrowwAPIAuthenticationException
+        try:
+            return api_func(*args, **kwargs)
+        except GrowwAPIAuthenticationException:
+            logger.warning("Access token expired or unauthorized. Attempting automated token refresh...")
+            try:
+                self._refresh_access_token()
+            except Exception as e:
+                logger.error("Failed to automatically refresh access token: %s", e)
+                raise
+            
+            # Retrieve the new function from the refreshed self.groww client
+            func_name = api_func.__name__
+            new_func = getattr(self.groww, func_name)
+            logger.info("Retrying API call %s with newly refreshed access token...", func_name)
+            return new_func(*args, **kwargs)
 
     def get_mcx_instruments(self, force_refresh: bool = False) -> pd.DataFrame:
         if not force_refresh and self._cache_is_fresh():
             return self._read_cache()
 
-        frame = self.groww.get_all_instruments()
+        frame = self._execute_api_call(self.groww.get_all_instruments)
         if not isinstance(frame, pd.DataFrame):
             frame = pd.DataFrame(frame)
         if frame.empty:
@@ -112,7 +147,8 @@ class GrowwDataFetcher:
                     self.segment_commodity,
                     query_key,
                 )
-                data: dict[str, Any] = self.groww.get_ltp(
+                data: dict[str, Any] = self._execute_api_call(
+                    self.groww.get_ltp,
                     segment=self.segment_commodity,
                     exchange_trading_symbols=query_key,
                 )
@@ -167,7 +203,8 @@ class GrowwDataFetcher:
                 formatted_start,
                 formatted_end,
             )
-            response = self.groww.get_historical_candles(
+            response = self._execute_api_call(
+                self.groww.get_historical_candles,
                 exchange=exchange,
                 segment=segment,
                 groww_symbol=groww_symbol,
@@ -206,7 +243,8 @@ class GrowwDataFetcher:
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", DeprecationWarning)
-                    return self.groww.get_historical_candle_data(
+                    return self._execute_api_call(
+                        self.groww.get_historical_candle_data,
                         trading_symbol=trading_symbol,
                         exchange=exchange,
                         segment=segment,
