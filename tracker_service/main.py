@@ -95,26 +95,40 @@ def run_once(
         raise RuntimeError(f"One or more quotes missing in multi-fetch: {quotes.keys()}")
 
     record = AtmRecord(
-        timestamp=now,
+        timestamp=now.replace(second=0, microsecond=0),
         futures_price=future_quote.last_price,
         atm_strike=selection.atm_strike,
         ce_price=ce_quote.last_price,
         pe_price=pe_quote.last_price,
         futures_symbol=selection.trading_symbol,
     )
-    # Check if we already have a record for this exact minute to prevent duplicates on restart
-    existing = repository.fetch_between(
-        now.replace(second=0, microsecond=0),
-        now.replace(second=59, microsecond=999999)
-    )
-    if existing:
-        print(f"SKIPPED (Duplicate): {now.strftime('%H:%M:%S')} already exists", flush=True)
-        return None
 
-    if now.minute % 5 == 0:
+    # Fetch and record data 1 minute after the 5-minute mark (e.g. at 09:36 for the 09:35 mark)
+    # This prevents any feed/calculation delays and ensures clean 00-second timestamps on the dashboard
+    if (now.minute - 1) % 5 == 0:
+        target_timestamp = (now - timedelta(minutes=1)).replace(second=0, microsecond=0)
+        
+        record = AtmRecord(
+            timestamp=target_timestamp,
+            futures_price=future_quote.last_price,
+            atm_strike=selection.atm_strike,
+            ce_price=ce_quote.last_price,
+            pe_price=pe_quote.last_price,
+            futures_symbol=selection.trading_symbol,
+        )
+        
+        # Check duplicate using the rounded timestamp
+        existing = repository.fetch_between(
+            target_timestamp,
+            target_timestamp
+        )
+        if existing:
+            print(f"SKIPPED (Duplicate): {target_timestamp.strftime('%H:%M:%S')} already exists", flush=True)
+            return None
+
         repository.insert_atm_record(record)
         print(
-            f"RECORDED: {now.strftime('%H:%M:%S')} | "
+            f"RECORDED: {target_timestamp.strftime('%H:%M:%S')} (Captured at {now.strftime('%H:%M:%S')}) | "
             f"{record.futures_price:.2f} | "
             f"{record.atm_strike} | "
             f"{record.ce_price:.2f} | "
@@ -122,7 +136,7 @@ def run_once(
             flush=True,
         )
     else:
-        print(f"SKIPPED (Not 5m): {now.strftime('%H:%M:%S')} | {record.futures_price:.2f}", flush=True)
+        print(f"SKIPPED (Not 5m+1): {now.strftime('%H:%M:%S')} | {record.futures_price:.2f}", flush=True)
     return record
 
 
@@ -244,9 +258,9 @@ def sync_history(
         # Get future instrument for the symbol name
         future = fetcher.get_natural_gas_future(instruments, as_of_date=target_date)
         
-        # Prepare deduplication set
-        existing_timestamps = {
-            pd.Timestamp(row.get("timestamp")).isoformat()
+        # Prepare deduplication set matching by minute to handle live tracking offsets (with seconds)
+        existing_minutes = {
+            pd.Timestamp(row.get("timestamp")).replace(second=0, microsecond=0).isoformat()
             for row in existing
             if row.get("timestamp")
         }
@@ -256,8 +270,8 @@ def sync_history(
             if pd.isna(row.ce_price) or pd.isna(row.pe_price):
                 continue
             
-            ts_iso = pd.Timestamp(row.timestamp).isoformat()
-            if ts_iso in existing_timestamps:
+            ts_min = pd.Timestamp(row.timestamp).replace(second=0, microsecond=0).isoformat()
+            if ts_min in existing_minutes:
                 continue
             
             ts = pd.Timestamp(row.timestamp).to_pydatetime()
