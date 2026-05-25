@@ -220,6 +220,80 @@ async def get_data(
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now(LOCAL_TIMEZONE).isoformat()}
 
+import threading
+import time as time_module
+from tracker_service.main import resolve_daily_selection, run_once
+from tracker_service.intraday_windows import build_intraday_windows
+
+def run_tracker_loop():
+    logger.info("Background options tracker loop thread started!")
+    settings = get_settings()
+    
+    # 1. Initialize fetcher
+    try:
+        fetcher = GrowwDataFetcher(
+            access_token=settings.groww_access_token,
+            api_key=settings.groww_api_key,
+            totp_secret=settings.groww_totp_secret,
+            cache_ttl_hours=settings.instrument_cache_ttl_hours,
+        )
+    except Exception as e:
+        logger.error("Failed to initialize GrowwDataFetcher in loop: %s", str(e))
+        return
+        
+    # 2. Initialize repository
+    repository = SupabaseRepository(
+        url=settings.supabase_url,
+        key=settings.supabase_key,
+        table=settings.supabase_table,
+    )
+    
+    # 3. Perform boot sync for today to fill any gaps
+    try:
+        logger.info("Booting historical sync for last 1 day to fill gaps...")
+        sync_history(fetcher, repository, days=1)
+    except Exception as e:
+        logger.error("Boot historical sync failed: %s", str(e))
+
+    logger.info("Starting continuous 5-minute sampling loop...")
+    current_selection = None
+    while True:
+        loop_start = time_module.monotonic()
+        try:
+            local_now = datetime.now(LOCAL_TIMEZONE)
+            current_date = local_now.date()
+            
+            # Check if we are in a monitoring window
+            windows = build_intraday_windows(current_date, current_date, now=local_now)
+            is_in_window = any(w[0] <= local_now <= w[1] for w in windows)
+            
+            if is_in_window:
+                if current_selection is None or current_selection.trading_date != current_date:
+                    instruments = fetcher.get_mcx_instruments()
+                    current_selection = resolve_daily_selection(
+                        fetcher=fetcher,
+                        repository=repository,
+                        instruments=instruments,
+                        trading_date=current_date,
+                    )
+                run_once(fetcher, repository, current_selection)
+            else:
+                # Log occasionally
+                if local_now.minute % 15 == 0 and local_now.second < 10:
+                    logger.info("Outside monitoring windows. Sleeping...")
+
+        except Exception:
+            logger.exception("ATM tracker loop cycle failed")
+
+        elapsed = time_module.monotonic() - loop_start
+        time_module.sleep(max(1, settings.poll_interval_seconds - elapsed))
+
+@app.on_event("startup")
+def start_background_tracker():
+    logger.info("Spawning background options tracker daemon thread...")
+    thread = threading.Thread(target=run_tracker_loop, name="NG-Options-Tracker", daemon=True)
+    thread.start()
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
