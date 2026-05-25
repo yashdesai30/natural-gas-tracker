@@ -117,13 +117,14 @@ def run_once(
             futures_symbol=selection.trading_symbol,
         )
         
-        # Check duplicate using the rounded timestamp
+        # Check duplicate using a 59-second window starting at target_timestamp (e.g. 09:55:00 to 09:55:59)
+        # This handles legacy records with seconds (e.g., 09:55:09) during transition phases
         existing = repository.fetch_between(
             target_timestamp,
-            target_timestamp
+            target_timestamp + timedelta(seconds=59)
         )
         if existing:
-            print(f"SKIPPED (Duplicate): {target_timestamp.strftime('%H:%M:%S')} already exists", flush=True)
+            print(f"SKIPPED (Duplicate): {target_timestamp.strftime('%H:%M:%S')} already exists (detected via 59s window check)", flush=True)
             return None
 
         repository.insert_atm_record(record)
