@@ -20,13 +20,15 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [showChart, setShowChart] = useState(true);
+  const [showChart, setShowChart] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState('all');
 
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('page', (pageIndex + 1).toString());
@@ -105,17 +107,21 @@ export default function Dashboard() {
     };
   }, [syncing, checkSyncStatus]);
 
-  // Reset pageIndex when filters change
-  useEffect(() => {
-    setPageIndex(0);
-  }, [symbolFilter, startDate, endDate]);
-
-  // Initial fetch and fetch on filter change
+  // Debounce typing in manual search input
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchData();
-    }, 500); // Debounce filter changes
+      if (searchInput !== symbolFilter) {
+        setLoading(true);
+        setSymbolFilter(searchInput);
+        setPageIndex(0);
+      }
+    }, 450); // 450ms debounce for typing
     return () => clearTimeout(timer);
+  }, [searchInput, symbolFilter]);
+
+  // Initial fetch and immediate fetch on any parameter change
+  useEffect(() => {
+    fetchData();
   }, [fetchData]);
 
   // Check status on mount in case a sync was already running
@@ -123,7 +129,19 @@ export default function Dashboard() {
     checkSyncStatus();
   }, []);
 
+  const handlePageChange = (index: number) => {
+    setLoading(true);
+    setPageIndex(index);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setLoading(true);
+    setPageSize(size);
+    setPageIndex(0);
+  };
+
   const applyDatePreset = (preset: string) => {
+    setLoading(true);
     const today = new Date();
     const formatDate = (date: Date) => {
       const yyyy = date.getFullYear();
@@ -136,38 +154,46 @@ export default function Dashboard() {
       setStartDate(formatDate(today));
       setEndDate(formatDate(today));
       setActivePreset('today');
+      setPageIndex(0);
     } else if (preset === 'yesterday') {
       const yesterday = new Date();
       yesterday.setDate(today.getDate() - 1);
       setStartDate(formatDate(yesterday));
       setEndDate(formatDate(yesterday));
       setActivePreset('yesterday');
+      setPageIndex(0);
     } else if (preset === 'week') {
       const weekAgo = new Date();
       weekAgo.setDate(today.getDate() - 7);
       setStartDate(formatDate(weekAgo));
       setEndDate(formatDate(today));
       setActivePreset('week');
+      setPageIndex(0);
     } else if (preset === 'month') {
       const monthAgo = new Date();
       monthAgo.setDate(today.getDate() - 30);
       setStartDate(formatDate(monthAgo));
       setEndDate(formatDate(today));
       setActivePreset('month');
+      setPageIndex(0);
     } else if (preset === 'all') {
       setStartDate('');
       setEndDate('');
       setActivePreset('all');
+      setPageIndex(0);
     } else if (preset === 'custom') {
       setActivePreset('custom');
     }
   };
 
   const clearFilters = () => {
+    setLoading(true);
     setSymbolFilter('');
+    setSearchInput('');
     setStartDate('');
     setEndDate('');
     setActivePreset('all');
+    setPageIndex(0);
   };
 
   const latest = data[0] || null;
@@ -286,193 +312,186 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <AnimatePresence mode="wait">
-            {loading ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-96 flex items-center justify-center rounded-[2rem] border border-white/[0.08] bg-zinc-900/20 backdrop-blur-3xl"
-              >
-                <div className="flex flex-col items-center gap-4 text-zinc-500">
-                  <div className="relative">
-                    <RefreshCw className="w-10 h-10 animate-spin text-blue-500" />
-                    <div className="absolute inset-0 blur-xl bg-blue-500/20 animate-pulse" />
-                  </div>
-                  <span className="font-mono text-sm tracking-widest uppercase text-center px-4">
-                    Retrieving Market Intelligence...
-                  </span>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="table"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="space-y-6"
-              >
-                {/* Filter Panel (Now appears ABOVE the table) */}
-                <AnimatePresence>
-                  {showFilters && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, y: -10 }}
-                      animate={{ opacity: 1, height: 'auto', y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: -10 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="p-8 rounded-[2rem] bg-zinc-900/40 border border-white/10 backdrop-blur-3xl grid grid-cols-1 md:grid-cols-3 gap-8 relative shadow-2xl">
-                        
-                        {/* Column 1: Active Instruments quick filter */}
-                        <div className="space-y-4 md:col-span-2">
-                          <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
-                              Filter by Instrument
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                              {availableSymbols.length > 0 ? (
-                                availableSymbols.map((sym) => {
-                                  const isActive = symbolFilter === sym;
-                                  return (
-                                    <button
-                                      key={sym}
-                                      type="button"
-                                      onClick={() => setSymbolFilter(isActive ? '' : sym)}
-                                      className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold border transition-all hover:scale-[1.02] active:scale-95 ${
-                                        isActive 
-                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-lg shadow-emerald-500/5' 
-                                        : 'bg-zinc-950/40 border-white/[0.04] text-zinc-400 hover:text-zinc-200 hover:border-white/10 hover:bg-white/[0.01]'
-                                      }`}
-                                    >
-                                      {sym}
-                                    </button>
-                                  );
-                                })
-                              ) : (
-                                <span className="text-zinc-600 text-xs font-mono">No active instruments cached...</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                              <Search className="w-3 h-3 text-zinc-600" /> Manual Search
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. NATURALGAS26MAY26FUT"
-                              value={symbolFilter}
-                              onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
-                              className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700 font-mono"
-                            />
-                          </div>
+          <motion.div
+            key="table"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-6"
+          >
+            {/* Filter Panel (Now appears ABOVE the table) */}
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, y: -10 }}
+                  animate={{ opacity: 1, height: 'auto', y: 0 }}
+                  exit={{ opacity: 0, height: 0, y: -10 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-8 rounded-[2rem] bg-zinc-900/40 border border-white/10 backdrop-blur-3xl grid grid-cols-1 md:grid-cols-3 gap-8 relative shadow-2xl">
+                    
+                    {/* Column 1: Active Instruments quick filter */}
+                    <div className="space-y-4 md:col-span-2">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                          Filter by Instrument
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {availableSymbols.length > 0 ? (
+                            availableSymbols.map((sym) => {
+                              const isActive = symbolFilter === sym;
+                              return (
+                                <button
+                                  key={sym}
+                                  type="button"
+                                  onClick={() => {
+                                    setLoading(true);
+                                    const nextSym = isActive ? '' : sym;
+                                    setSymbolFilter(nextSym);
+                                    setSearchInput(nextSym);
+                                    setPageIndex(0);
+                                  }}
+                                  className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold border transition-all hover:scale-[1.02] active:scale-95 ${
+                                    isActive 
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-lg shadow-emerald-500/5' 
+                                    : 'bg-zinc-950/40 border-white/[0.04] text-zinc-400 hover:text-zinc-200 hover:border-white/10 hover:bg-white/[0.01]'
+                                  }`}
+                                >
+                                  {sym}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <span className="text-zinc-600 text-xs font-mono">No active instruments cached...</span>
+                          )}
                         </div>
-
-                        {/* Column 2: Date Ranges */}
-                        <div className="space-y-4">
-                          <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
-                              Quick Date Ranges
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                              {[
-                                { id: 'all', label: 'All Time' },
-                                { id: 'today', label: 'Today' },
-                                { id: 'yesterday', label: 'Yesterday' },
-                                { id: 'week', label: 'Last 7 Days' },
-                                { id: 'month', label: 'Last 30 Days' },
-                                { id: 'custom', label: 'Custom Range' },
-                              ].map((preset) => {
-                                const isActive = activePreset === preset.id;
-                                return (
-                                  <button
-                                    key={preset.id}
-                                    type="button"
-                                    onClick={() => applyDatePreset(preset.id)}
-                                    className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all hover:scale-[1.02] active:scale-95 ${
-                                      isActive 
-                                      ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-lg shadow-blue-500/5' 
-                                      : 'bg-zinc-950/40 border-white/[0.04] text-zinc-400 hover:text-zinc-200 hover:border-white/10 hover:bg-white/[0.01]'
-                                    }`}
-                                  >
-                                    {preset.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          <AnimatePresence>
-                            {activePreset === 'custom' && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="overflow-hidden grid grid-cols-2 gap-4 pt-2"
-                              >
-                                <div className="space-y-2">
-                                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                                    <Calendar className="w-3 h-3 text-zinc-600" /> From
-                                  </label>
-                                  <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                                    <Calendar className="w-3 h-3 text-zinc-600" /> To
-                                  </label>
-                                  <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
-                                  />
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
-                        <button
-                          onClick={clearFilters}
-                          className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-white transition-colors"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
 
-                <DataTable
-                  data={data}
-                  pageIndex={pageIndex}
-                  pageSize={pageSize}
-                  pageCount={Math.ceil(totalCount / pageSize)}
-                  totalCount={totalCount}
-                  onPageChange={setPageIndex}
-                  onPageSizeChange={setPageSize}
-                  showFilters={showFilters}
-                  onToggleFilters={() => setShowFilters(!showFilters)}
-                  isFiltered={!!(symbolFilter || startDate || endDate)}
-                />
-
-                {data.length === 0 && (
-                  <div className="py-20 text-center space-y-4">
-                    <div className="inline-flex p-4 rounded-full bg-white/5 text-zinc-700">
-                      <Search className="w-8 h-8" />
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                          <Search className="w-3 h-3 text-zinc-600" /> Manual Search
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. NATURALGAS26MAY26FUT"
+                          value={searchInput}
+                          onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
+                          className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700 font-mono"
+                        />
+                      </div>
                     </div>
-                    <p className="text-zinc-500 font-medium">No records found for the selected criteria.</p>
+
+                    {/* Column 2: Date Ranges */}
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                          Quick Date Ranges
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { id: 'all', label: 'All Time' },
+                            { id: 'today', label: 'Today' },
+                            { id: 'yesterday', label: 'Yesterday' },
+                            { id: 'week', label: 'Last 7 Days' },
+                            { id: 'month', label: 'Last 30 Days' },
+                            { id: 'custom', label: 'Custom Range' },
+                          ].map((preset) => {
+                            const isActive = activePreset === preset.id;
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => applyDatePreset(preset.id)}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all hover:scale-[1.02] active:scale-95 ${
+                                  isActive 
+                                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-lg shadow-blue-500/5' 
+                                  : 'bg-zinc-950/40 border-white/[0.04] text-zinc-400 hover:text-zinc-200 hover:border-white/10 hover:bg-white/[0.01]'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <AnimatePresence>
+                        {activePreset === 'custom' && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden grid grid-cols-2 gap-4 pt-2"
+                          >
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                                <Calendar className="w-3 h-3 text-zinc-600" /> From
+                              </label>
+                              <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => {
+                                  setLoading(true);
+                                  setStartDate(e.target.value);
+                                  setPageIndex(0);
+                                }}
+                                className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
+                                <Calendar className="w-3 h-3 text-zinc-600" /> To
+                              </label>
+                              <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => {
+                                  setLoading(true);
+                                  setEndDate(e.target.value);
+                                  setPageIndex(0);
+                                }}
+                                className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors [color-scheme:dark]"
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <button
+                      onClick={clearFilters}
+                      className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-white transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
-                )}
-              </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <DataTable
+              data={data}
+              loading={loading}
+              pageIndex={pageIndex}
+              pageSize={pageSize}
+              pageCount={Math.ceil(totalCount / pageSize)}
+              totalCount={totalCount}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              showFilters={showFilters}
+              onToggleFilters={() => setShowFilters(!showFilters)}
+              isFiltered={!!(symbolFilter || startDate || endDate)}
+            />
+
+            {!loading && data.length === 0 && (
+              <div className="py-20 text-center space-y-4">
+                <div className="inline-flex p-4 rounded-full bg-white/5 text-zinc-700">
+                  <Search className="w-8 h-8" />
+                </div>
+                <p className="text-zinc-500 font-medium">No records found for the selected criteria.</p>
+              </div>
             )}
-          </AnimatePresence>
+          </motion.div>
         </div>
       </div>
 
