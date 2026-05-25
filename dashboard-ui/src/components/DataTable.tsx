@@ -137,6 +137,7 @@ const columnLabels: Record<string, string> = {
 
 export function DataTable({ 
   data, 
+  loading,
   pageIndex,
   pageSize,
   pageCount,
@@ -148,6 +149,7 @@ export function DataTable({
   isFiltered 
 }: { 
   data: TrackerRecord[], 
+  loading: boolean,
   pageIndex: number,
   pageSize: number,
   pageCount: number,
@@ -188,6 +190,15 @@ export function DataTable({
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @keyframes rowFadeIn {
+          from { opacity: 0; transform: translateY(3px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-row-fade {
+          animation: rowFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
       {/* Filters & Actions */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -314,27 +325,58 @@ export function DataTable({
                 </tr>
               ))}
             </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors group"
-                >
-                  {row.getVisibleCells().map((cell) => {
-                    const isTime = cell.column.id === 'timestamp';
-                    return (
-                      <td 
-                        key={cell.id} 
-                        className={`px-4 sm:px-8 py-4 text-xs sm:text-sm font-medium
-                          ${isTime ? 'sticky left-0 z-10 bg-zinc-950/95 group-hover:bg-zinc-900 border-r border-white/[0.08] shadow-[4px_0_10px_-3px_rgba(0,0,0,0.5)] transition-colors' : ''}
-                        `}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+            <tbody className="transition-opacity duration-300">
+              {loading ? (
+                Array.from({ length: pageSize || 15 }).map((_, rowIndex) => (
+                  <tr 
+                    key={rowIndex} 
+                    className="border-b border-white/[0.04] bg-white/[0.01]"
+                  >
+                    {table.getHeaderGroups()[0].headers.map((header) => {
+                      const isTime = header.column.id === 'timestamp';
+                      
+                      // Customize skeleton pill sizes to map actual columns perfectly
+                      let skeletonWidth = 'w-16';
+                      if (header.column.id === 'timestamp') skeletonWidth = 'w-24';
+                      else if (header.column.id === 'futures_symbol') skeletonWidth = 'w-36';
+                      else if (header.column.id === 'atm_strike') skeletonWidth = 'w-12';
+                      else if (header.column.id === 'prev_day_future') skeletonWidth = 'w-32';
+                      
+                      return (
+                        <td 
+                          key={header.id} 
+                          className={`px-4 sm:px-8 py-5
+                            ${isTime ? 'sticky left-0 z-10 bg-zinc-950/95 border-r border-white/[0.08] shadow-[4px_0_10px_-3px_rgba(0,0,0,0.5)]' : ''}
+                          `}
+                        >
+                          <div className={`h-4 bg-white/[0.06] animate-pulse rounded-full ${skeletonWidth}`} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors group animate-row-fade opacity-0"
+                  >
+                    {row.getVisibleCells().map((cell) => {
+                      const isTime = cell.column.id === 'timestamp';
+                      return (
+                        <td 
+                          key={cell.id} 
+                          className={`px-4 sm:px-8 py-4 text-xs sm:text-sm font-medium
+                            ${isTime ? 'sticky left-0 z-10 bg-zinc-950/95 group-hover:bg-zinc-900 border-r border-white/[0.08] shadow-[4px_0_10px_-3px_rgba(0,0,0,0.5)] transition-colors' : ''}
+                          `}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
