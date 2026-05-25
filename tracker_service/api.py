@@ -163,10 +163,15 @@ def enrich_records(records: list[dict[str, object]], repository: SupabaseReposit
             r["prev_day_future"] = p_fut
             if p_ce is not None and p_pe is not None:
                 r["prev_day_total"] = p_ce + p_pe
+                if r["ce_pe_total"] is not None:
+                    r["prev_day_diff"] = r["ce_pe_total"] - r["prev_day_total"]
+                else:
+                    r["prev_day_diff"] = None
             else:
                 r["prev_day_total"] = None
+                r["prev_day_diff"] = None
         else:
-            r["prev_day_ce"] = r["prev_day_pe"] = r["prev_day_future"] = r["prev_day_total"] = None
+            r["prev_day_ce"] = r["prev_day_pe"] = r["prev_day_future"] = r["prev_day_total"] = r["prev_day_diff"] = None
             
         enriched.append(r)
         
@@ -192,9 +197,11 @@ async def get_data(
         start_dt = None
         end_dt = None
         if start_date:
-            start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            dt_parsed = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            start_dt = datetime.combine(dt_parsed.date(), datetime.min.time(), tzinfo=LOCAL_TIMEZONE)
         if end_date:
-            end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            dt_parsed = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            end_dt = datetime.combine(dt_parsed.date(), datetime.max.time(), tzinfo=LOCAL_TIMEZONE)
             
         data, total_count = repository.fetch_paginated(
             page=page,
