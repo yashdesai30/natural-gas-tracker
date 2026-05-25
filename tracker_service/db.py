@@ -113,9 +113,14 @@ class SupabaseRepository:
         return list(response.data or [])
 
     def fetch_last_before(self, ts: datetime, symbol: str | None = None) -> dict[str, object] | None:
-        query = self.client.table(self.table).select("*").lt("timestamp", ts.isoformat())
         if symbol:
-            query = query.eq("futures_symbol", symbol)
+            query = self.client.table(self.table).select("*").lt("timestamp", ts.isoformat()).eq("futures_symbol", symbol)
+            response = query.order("timestamp", desc=True).limit(1).execute()
+            if response.data:
+                return response.data[0]
+                
+        # Fallback to the absolute last record before this timestamp if no symbol-specific match is found
+        query = self.client.table(self.table).select("*").lt("timestamp", ts.isoformat())
         response = query.order("timestamp", desc=True).limit(1).execute()
         return response.data[0] if response.data else None
 
