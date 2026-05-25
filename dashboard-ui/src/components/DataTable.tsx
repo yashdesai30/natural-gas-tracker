@@ -14,7 +14,7 @@ import {
 import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, Database, SlidersHorizontal, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
-interface Record {
+interface TrackerRecord {
   id: string;
   timestamp: string;
   futures_price: number;
@@ -31,7 +31,7 @@ interface Record {
   prev_day_diff?: number;
 }
 
-const columnHelper = createColumnHelper<Record>();
+const columnHelper = createColumnHelper<TrackerRecord>();
 
 const columns = [
   columnHelper.accessor('timestamp', {
@@ -147,7 +147,7 @@ export function DataTable({
   showFilters,
   isFiltered 
 }: { 
-  data: Record[], 
+  data: TrackerRecord[], 
   pageIndex: number,
   pageSize: number,
   pageCount: number,
