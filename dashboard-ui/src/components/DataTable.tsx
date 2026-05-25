@@ -11,7 +11,7 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, Database } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, Database, SlidersHorizontal, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Record {
@@ -28,6 +28,7 @@ interface Record {
   prev_day_future?: number;
   prev_day_total?: number;
   morning_diff?: number;
+  prev_day_diff?: number;
 }
 
 const columnHelper = createColumnHelper<Record>();
@@ -104,7 +105,35 @@ const columns = [
       );
     },
   }),
+  columnHelper.accessor('prev_day_diff', {
+    header: 'Prev Close Diff',
+    cell: (info) => {
+      const val = info.getValue();
+      if (val === undefined || val === null) {
+        return <span className="text-zinc-600 font-mono text-xs">-</span>;
+      }
+      const isPositive = val >= 0;
+      return (
+        <span className={`font-mono text-xs font-bold ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+          {isPositive ? '+' : ''}{val.toFixed(2)}
+        </span>
+      );
+    },
+  }),
 ];
+
+const columnLabels: Record<string, string> = {
+  timestamp: 'Time',
+  futures_symbol: 'Symbol',
+  futures_price: 'Future Price',
+  atm_strike: 'ATM Strike',
+  ce_price: 'CE Price',
+  pe_price: 'PE Price',
+  ce_pe_total: 'Total (CE+PE)',
+  prev_day_future: 'Prev Close (Fut/CE/PE)',
+  morning_diff: 'Morning Diff',
+  prev_day_diff: 'Prev Close Diff',
+};
 
 export function DataTable({ 
   data, 
@@ -131,6 +160,8 @@ export function DataTable({
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({});
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false);
 
   const table = useReactTable({
     data,
@@ -143,7 +174,9 @@ export function DataTable({
         pageIndex,
         pageSize,
       },
+      columnVisibility,
     },
+    onColumnVisibilityChange: setColumnVisibility,
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
@@ -157,18 +190,33 @@ export function DataTable({
     <div className="space-y-6">
       {/* Filters & Actions */}
       <div className="flex items-center justify-between gap-4">
-        <button
-          onClick={onToggleFilters}
-          className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-bold transition-all border ${
-            showFilters || isFiltered
-            ? 'bg-white text-black border-white shadow-xl shadow-white/10' 
-            : 'bg-zinc-900/50 border-white/[0.08] text-zinc-400 hover:text-white hover:border-white/20'
-          }`}
-        >
-          <Filter className="w-4 h-4" />
-          {showFilters ? 'Hide Filters' : 'Show Filters'}
-          {isFiltered && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-1" />}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onToggleFilters}
+            className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-bold transition-all border ${
+              showFilters || isFiltered
+              ? 'bg-white text-black border-white shadow-xl shadow-white/10' 
+              : 'bg-zinc-900/50 border-white/[0.08] text-zinc-400 hover:text-white hover:border-white/20'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+            {isFiltered && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-1" />}
+          </button>
+
+          {/* Columns Toggle Button */}
+          <button
+            onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+            className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-bold transition-all border ${
+              showColumnDropdown
+              ? 'bg-white text-black border-white shadow-xl shadow-white/10' 
+              : 'bg-zinc-900/50 border-white/[0.08] text-zinc-400 hover:text-white hover:border-white/20'
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            {showColumnDropdown ? 'Hide Columns Config' : 'Configure Columns'}
+          </button>
+        </div>
         
         <div className="flex items-center gap-2 text-zinc-500 text-[10px] font-mono uppercase tracking-[0.2em]">
           <Database className="w-3 h-3" />
@@ -176,6 +224,65 @@ export function DataTable({
           <span>Records Found</span>
         </div>
       </div>
+
+      {/* Column Customizer Drawer */}
+      {showColumnDropdown && (
+        <div className="p-8 rounded-[2rem] bg-zinc-900/40 border border-white/10 backdrop-blur-3xl space-y-6 shadow-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+            <div>
+              <h3 className="text-lg font-black text-white tracking-tight">Configure Active Columns</h3>
+              <p className="text-xs text-zinc-500 font-medium">Show or hide specific data fields from the tracking grid</p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  table.getAllLeafColumns().forEach(col => col.toggleVisibility(true));
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/5 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 hover:scale-[1.02] active:scale-95 transition-all text-xs font-bold"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Show All
+              </button>
+              <button
+                onClick={() => {
+                  table.getAllLeafColumns().forEach(col => {
+                    const id = col.id;
+                    const defaultHidden = ['futures_symbol', 'prev_day_future'];
+                    col.toggleVisibility(!defaultHidden.includes(id));
+                  });
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/5 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 hover:scale-[1.02] active:scale-95 transition-all text-xs font-bold"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Defaults
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {table.getAllLeafColumns().map((column) => {
+              const id = column.id;
+              const label = columnLabels[id] || id;
+              const isVisible = column.getIsVisible();
+              return (
+                <button
+                  key={column.id}
+                  onClick={() => column.toggleVisibility(!isVisible)}
+                  className={`flex items-center gap-3 px-5 py-3 rounded-2xl font-bold border transition-all text-xs hover:scale-[1.02] active:scale-95 ${
+                    isVisible 
+                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-lg shadow-blue-500/5 hover:bg-blue-500/15' 
+                    : 'bg-zinc-950/40 border-white/[0.04] text-zinc-600 hover:text-zinc-400 hover:border-white/10 hover:bg-white/[0.01]'
+                  }`}
+                >
+                  {isVisible ? <Eye className="w-4 h-4 text-blue-400" /> : <EyeOff className="w-4 h-4 text-zinc-700" />}
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-3xl border border-white/[0.08] bg-zinc-900/30 backdrop-blur-2xl shadow-2xl">
