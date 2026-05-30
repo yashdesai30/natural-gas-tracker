@@ -7,3 +7,4 @@ fastapi
 uvicorn
 gunicorn
 a2wsgi
+exchange-calendars>=4.13.2
