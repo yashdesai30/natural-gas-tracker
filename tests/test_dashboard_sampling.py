@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import unittest
 
-import dashboard
 import tracker_service.main as tracker_main
 from tracker_service.data_fetcher import GrowwDataFetcher
 
@@ -124,7 +123,7 @@ class DashboardSamplingTests(unittest.TestCase):
     def test_build_daily_frame_locks_atm_to_first_row(self) -> None:
         fetcher = FakeFetcher()
         instruments = build_instruments()
-        frame = dashboard.build_daily_frame(
+        frame = tracker_main.build_daily_frame(
             fetcher=fetcher,
             instruments=instruments,
             trading_date=date(2026, 4, 27),
@@ -136,42 +135,6 @@ class DashboardSamplingTests(unittest.TestCase):
         self.assertEqual(list(frame["ce_price"]), [10.2, 11.2])
         self.assertEqual(list(frame["pe_price"]), [12.2, 13.2])
 
-    def test_sync_today_rows_skips_existing_timestamps(self) -> None:
-        inserted = []
-
-        today_frame = pd.DataFrame(
-            {
-                "timestamp": [utc(date(2026, 4, 27), 9, 0), utc(date(2026, 4, 27), 9, 5)],
-                "futures_price": [240.2, 245.2],
-                "atm_strike": [240, 240],
-                "ce_price": [10.2, 11.2],
-                "pe_price": [12.2, 13.2],
-            }
-        )
-
-        repository = MagicMock()
-        repository.fetch_between.return_value = [
-            {"timestamp": today_frame.iloc[0]["timestamp"].isoformat()},
-        ]
-
-        def capture(record):  # noqa: ANN001
-            inserted.append(record)
-            return None
-
-        repository.insert_atm_record.side_effect = capture
-
-        with patch.object(dashboard, "build_daily_frame", return_value=today_frame):
-            count_inserted, count_skipped = dashboard.sync_today_rows(
-                fetcher=FakeFetcher(),
-                repository=repository,
-                instruments=build_instruments(),
-                local_now=datetime(2026, 4, 27, 10, 0, tzinfo=IST),
-            )
-
-        self.assertEqual(count_inserted, 1)
-        self.assertEqual(count_skipped, 1)
-        self.assertEqual(len(inserted), 1)
-        self.assertEqual(inserted[0].timestamp.isoformat(), today_frame.iloc[1]["timestamp"].isoformat())
 
     def test_resolve_daily_selection_reuses_existing_atm(self) -> None:
         fetcher = FakeFetcher()

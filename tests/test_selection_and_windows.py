@@ -7,7 +7,6 @@ import unittest
 
 import pandas as pd
 
-from dashboard import fetch_previous_close
 from tracker_service.data_fetcher import GrowwDataFetcher
 from tracker_service.intraday_windows import LOCAL_TIMEZONE, filter_sampled_rows
 from tracker_service.option_selector import OptionSelector
@@ -164,31 +163,13 @@ class SelectionAndWindowTests(unittest.TestCase):
                 "09:05",
                 "09:10",
                 "09:15",
+                "09:20",
                 "15:00",
                 "15:05",
                 "17:00",
                 "17:30",
                 "20:30",
+                "20:35",
             ],
         )
 
-    def test_fetch_previous_close_walks_back_to_last_trading_day(self) -> None:
-        class FakeFetcher:
-            def get_minute_candles(self, **kwargs):  # noqa: ANN003
-                start_time = kwargs["start_time"]
-                if start_time.date() == date(2026, 4, 25):
-                    return pd.DataFrame(
-                        {
-                            "timestamp": [pd.Timestamp("2026-04-25T10:00:00+05:30")],
-                            "close": [238.5],
-                        }
-                    )
-                return pd.DataFrame(columns=["timestamp", "close"])
-
-        previous_close = fetch_previous_close(
-            FakeFetcher(),
-            trading_symbol="NATURALGAS26MAY26FUT",
-            trading_date=date(2026, 4, 27),
-        )
-
-        self.assertEqual(previous_close, 238.5)

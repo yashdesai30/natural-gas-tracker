@@ -116,7 +116,7 @@ def resolve_target_contract_period(
     
     # Check if current month contracts still exist
     current_period_options = options[options["expiry"].dt.to_period("M") == current_period]
-    has_current_options = not current_period_options.empty and current_period_options["expiry"].max().date() >= target_date
+    has_current_options = not current_period_options.empty and current_period_options["expiry"].max().date() > target_date
     
     if target_date < last_thursday and has_current_options:
         target_period = current_period

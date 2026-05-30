@@ -241,6 +241,13 @@ def sync_history(
     
     for i in range(days):
         target_date = local_now.date() - timedelta(days=i)
+        
+        # Check if the market was open at all on this day
+        from tracker_service.intraday_windows import get_mcx_trading_windows
+        if not get_mcx_trading_windows(target_date):
+            logger.info("Skipping %s, market was closed all day", target_date)
+            continue
+            
         logger.info("Syncing historical data for %s", target_date)
         
         # Check if we already have data for this day
