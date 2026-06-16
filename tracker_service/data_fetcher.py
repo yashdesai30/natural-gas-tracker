@@ -181,48 +181,54 @@ class GrowwDataFetcher:
     ) -> pd.DataFrame:
         formatted_start = start_time.strftime("%Y-%m-%d %H:%M:%S")
         formatted_end = end_time.strftime("%Y-%m-%d %H:%M:%S")
-        if trading_symbol:
-            response = self._get_legacy_minute_candles(
-                trading_symbol=trading_symbol,
-                exchange=exchange,
-                segment=segment,
-                start_time=formatted_start,
-                end_time=formatted_end,
-            )
-            frame = self._normalise_candles(response)
-            if frame.empty:
-                return frame
-            frame = frame.sort_values("timestamp").drop_duplicates("timestamp", keep="last")
-            return frame.reset_index(drop=True)
 
-        try:
-            logger.info(
-                "Fetching historical candles for %s (groww_symbol=%s). Range: %s to %s",
-                trading_symbol or "unknown",
-                groww_symbol,
-                formatted_start,
-                formatted_end,
-            )
-            response = self._execute_api_call(
-                self.groww.get_historical_candles,
-                exchange=exchange,
-                segment=segment,
-                groww_symbol=groww_symbol,
-                start_time=formatted_start,
-                end_time=formatted_end,
-                candle_interval=getattr(self.groww, "CANDLE_INTERVAL_MIN_1", "1minute"),
-            )
-        except Exception as exc:
-            if not trading_symbol:
-                raise
+        response = None
+        if groww_symbol:
+            try:
+                logger.info(
+                    "Fetching historical candles for %s (groww_symbol=%s). Range: %s to %s",
+                    trading_symbol or "unknown",
+                    groww_symbol,
+                    formatted_start,
+                    formatted_end,
+                )
+                response = self._execute_api_call(
+                    self.groww.get_historical_candles,
+                    exchange=exchange,
+                    segment=segment,
+                    groww_symbol=groww_symbol,
+                    start_time=formatted_start,
+                    end_time=formatted_end,
+                    candle_interval=getattr(self.groww, "CANDLE_INTERVAL_MIN_1", "1minute"),
+                )
+            except Exception as exc:
+                if not trading_symbol:
+                    raise
+                logger.warning(
+                    "New historical candle API failed for %s (groww_symbol=%s): %s. Falling back to legacy API.",
+                    trading_symbol,
+                    groww_symbol,
+                    exc,
+                )
+                response = self._get_legacy_minute_candles(
+                    trading_symbol=trading_symbol,
+                    exchange=exchange,
+                    segment=segment,
+                    start_time=formatted_start,
+                    end_time=formatted_end,
+                    original_error=exc,
+                )
+        elif trading_symbol:
             response = self._get_legacy_minute_candles(
                 trading_symbol=trading_symbol,
                 exchange=exchange,
                 segment=segment,
                 start_time=formatted_start,
                 end_time=formatted_end,
-                original_error=exc,
             )
+        else:
+            raise ValueError("Either groww_symbol or trading_symbol must be provided")
+
         frame = self._normalise_candles(response)
         if frame.empty:
             return frame
